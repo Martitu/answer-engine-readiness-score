@@ -5,12 +5,22 @@ const LUXURY_BENCHMARK = 6.2;
 const CTA_URL = "https://martawarren.com/ai-search-brand-visibility/";
 
 function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-function scoreDimension(text, keywords) {
-  if (!text) return 0;
-  const lower = text.toLowerCase();
-  let score = 0;
-  for (const word of keywords) if (lower.includes(word)) score += 2;
-  return clamp(score, 0, 10);
+
+function containsNumber(text) {
+  return /\d/.test(text);
+}
+
+function containsQuestion(text) {
+  return text.includes("?") || text.toLowerCase().includes("best for");
+}
+
+function detectPropertyType(text) {
+  const types = ["hotel", "resort", "villa", "lodge", "retreat", "island"];
+  return types.some(t => text.toLowerCase().includes(t));
+}
+
+function detectLocation(text) {
+  return text.toLowerCase().includes("in ");
 }
 
 export default function Page() {
@@ -18,24 +28,50 @@ export default function Page() {
   const [results, setResults] = useState(null);
 
   const runAudit = () => {
-    const clarity = scoreDimension(input, ["located", "is", "offers", "ideal for", "features"]);
-    const proofSpecificity = scoreDimension(input, ["hotel","resort","villa","suite","spa","restaurant","destination"]);
-    const questionAlignment = scoreDimension(input, ["best for","who","what","where","how","why"]);
-    const verifiableDetail = scoreDimension(input, ["rooms","dates","price","km","minutes","award","year"]);
-    const durability = scoreDimension(input, ["faq","guide","itinerary","comparison","experience"]);
+    const lower = input.toLowerCase();
 
-    const overallRaw = (clarity + proofSpecificity + questionAlignment + verifiableDetail + durability) / 5;
-    const overall = Math.round(overallRaw * 10) / 10;
-    const performanceLabel = overall >= LUXURY_BENCHMARK ? "Above Luxury Benchmark" : "Below Luxury Benchmark";
+    const clarity = clamp(lower.includes("is") ? 6 : 2, 0, 10);
+    const proof = clamp(detectPropertyType(input) ? 8 : 3, 0, 10);
+    const question = clamp(containsQuestion(input) ? 8 : 2, 0, 10);
+    const verifiable = clamp(containsNumber(input) ? 8 : 3, 0, 10);
+    const durability = clamp(lower.includes("faq") || lower.includes("guide") ? 8 : 5, 0, 10);
 
-    const recommendations = [];
-    if (clarity < 6) recommendations.push("Lead with a clear ‘what it is / who it’s for / where it is’ sentence.");
-    if (proofSpecificity < 6) recommendations.push("Add explicit property names, destinations, room types, and categories.");
-    if (questionAlignment < 6) recommendations.push("Frame at least one traveler-style question and answer it directly.");
-    if (verifiableDetail < 6) recommendations.push("Include specific numbers, dates, distances, or differentiators.");
-    if (durability < 6) recommendations.push("Translate this into a durable asset: FAQ, micro-guide, or comparison page.");
+    const overall = Math.round(((clarity + proof + question + verifiable + durability) / 5) * 10) / 10;
 
-    setResults({ overall, performanceLabel, clarity, proofSpecificity, questionAlignment, verifiableDetail, durability, recommendations });
+    const strongest = [
+      { label: "Clarity", value: clarity },
+      { label: "Proof & Specificity", value: proof },
+      { label: "Question Alignment", value: question },
+      { label: "Verifiable Detail", value: verifiable },
+      { label: "Durability", value: durability }
+    ].sort((a, b) => b.value - a.value)[0];
+
+    const weakest = [
+      { label: "Clarity", value: clarity },
+      { label: "Proof & Specificity", value: proof },
+      { label: "Question Alignment", value: question },
+      { label: "Verifiable Detail", value: verifiable },
+      { label: "Durability", value: durability }
+    ].sort((a, b) => a.value - b.value)[0];
+
+    const checklist = {
+      location: detectLocation(input),
+      propertyType: detectPropertyType(input),
+      question: containsQuestion(input),
+      numbers: containsNumber(input),
+    };
+
+    setResults({
+      overall,
+      clarity,
+      proof,
+      question,
+      verifiable,
+      durability,
+      strongest,
+      weakest,
+      checklist
+    });
   };
 
   const delta = useMemo(() => {
@@ -44,92 +80,81 @@ export default function Page() {
     return (d >= 0 ? "+" : "") + d;
   }, [results]);
 
-  const exportReport = () => {
-    if (!results) return;
-    const content =
-`Answer Engine Readiness Score — Report
-
-Overall: ${results.overall}/10
-Luxury category average: ${LUXURY_BENCHMARK}/10 (${delta})
-
-Clarity: ${results.clarity}/10
-Proof & Specificity: ${results.proofSpecificity}/10
-Question Alignment: ${results.questionAlignment}/10
-Verifiable Detail: ${results.verifiableDetail}/10
-Durability & Translation Potential: ${results.durability}/10
-
-Recommendations:
-- ${results.recommendations.join("\n- ")}
-`;
-    const blob = new Blob([content], { type: "text/plain;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "Answer_Engine_Readiness_Score_Report.txt";
-    link.click();
-  };
-
   return (
     <div className="container">
       <div>
         <h1 className="h1">Answer Engine Readiness Score</h1>
-        <p className="sub">Paste any draft. Receive a readiness score and strategic refinements.</p>
+        <p className="sub">Luxury hospitality edition</p>
       </div>
 
       <div className="card">
-        <textarea className="textarea"
+        <textarea
+          className="textarea"
           placeholder="Paste your press release, property page, or social caption here..."
-          value={input} onChange={(e) => setInput(e.target.value)} />
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+        />
         <div className="row" style={{ marginTop: 12 }}>
-          <button className="btn btnGold" onClick={runAudit}>Run Score</button>
+          <button className="btn btnGold" onClick={runAudit}>
+            Run Score
+          </button>
         </div>
       </div>
 
       {results && (
         <div className="card">
+
           <div className="kpi">
             <div className="kpiTop">
               <div>
-                <div className="small">Overall Readiness Score</div>
+                <div className="small">Overall Readiness</div>
                 <div className="score">
-                  <span style={{ color: "var(--gold)" }}>{results.overall}</span>/10{" "}
-                  <span className="badge">{results.performanceLabel}</span>
+                  <span style={{ color: "var(--gold)" }}>{results.overall}</span>/10
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div className="small">Luxury Category Benchmark</div>
-                <div style={{ fontWeight: 650 }}>
-                  {LUXURY_BENCHMARK}/10 <span className="small">({delta})</span>
-                </div>
+              <div>
+                <div className="small">Luxury Benchmark</div>
+                <div>{LUXURY_BENCHMARK}/10 ({delta})</div>
               </div>
-            </div>
-
-            <hr className="hr" />
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <div><strong>Clarity:</strong> {results.clarity}/10</div>
-              <div><strong>Proof & Specificity:</strong> {results.proofSpecificity}/10</div>
-              <div><strong>Question Alignment:</strong> {results.questionAlignment}/10</div>
-              <div><strong>Verifiable Detail:</strong> {results.verifiableDetail}/10</div>
-              <div><strong>Durability & Translation Potential:</strong> {results.durability}/10</div>
             </div>
           </div>
 
-          <h2 className="h2">Recommendations</h2>
+          <h2 className="h2">Executive Summary</h2>
           <ul className="ul">
-            {results.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+            <li><strong>Strongest Signal:</strong> {results.strongest.label}</li>
+            <li><strong>Biggest Visibility Risk:</strong> {results.weakest.label}</li>
+            <li><strong>Fastest Lift:</strong> Add one structured “Best for…” sentence and one quantifiable proof point.</li>
           </ul>
 
-          <div className="kpi" style={{ marginTop: 14 }}>
-            <h3 style={{ margin: 0, fontSize: 14 }}>Request Full Benchmark Audit</h3>
-            <p className="small" style={{ marginTop: 6 }}>
-              Get a full visibility benchmark across priority prompts and AI surfaces, plus a prioritized action plan.
+          <h2 className="h2">Missing Proof Checklist</h2>
+          <ul className="ul">
+            <li>{results.checklist.location ? "✓" : "□"} Destination explicitly named</li>
+            <li>{results.checklist.propertyType ? "✓" : "□"} Property category defined</li>
+            <li>{results.checklist.question ? "✓" : "□"} Traveler-style question answered</li>
+            <li>{results.checklist.numbers ? "✓" : "□"} Quantifiable detail included</li>
+          </ul>
+
+          <h2 className="h2">AI-Ready Structured Version</h2>
+          <div className="kpi">
+            <p className="small">
+              What it is: <br/>
+              Where: <br/>
+              Best for: <br/>
+              Signature differentiator: <br/>
+              Verifiable proof points:
             </p>
-            <div className="row">
-              <a href={CTA_URL} target="_blank" rel="noreferrer">
-                <button className="btn btnGold">Request Full Benchmark Audit</button>
-              </a>
-              <button className="btn" onClick={exportReport}>Export Report</button>
-            </div>
           </div>
+
+          <div className="kpi" style={{ marginTop: 16 }}>
+            <h3 style={{ margin: 0 }}>Request Full Benchmark Audit</h3>
+            <p className="small">
+              Get a full visibility benchmark across priority prompts and AI surfaces.
+            </p>
+            <a href={CTA_URL} target="_blank" rel="noreferrer">
+              <button className="btn btnGold">Request Full Benchmark Audit</button>
+            </a>
+          </div>
+
         </div>
       )}
     </div>
