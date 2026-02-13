@@ -339,6 +339,6 @@ export default function Page() {
     </div>
   );
 }
-<p className="muted" style={{ marginTop: 18 }}>
+<p className="muted" style={{ marginTop: 18, fontSize: 13 }}>
   Created by Marta Warren | AI-Ready Copy & Content for Luxury Hospitality
 </p>
