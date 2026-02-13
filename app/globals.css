@@ -1,0 +1,27 @@
+:root{
+  --bg:#0b0b0c; --panel:#111113; --panel2:#0f0f10; --border:#2a2a2e;
+  --ivory:#f6f1e7; --muted:#bfb7aa; --gold:#c9a227; --gold2:#d6b23a;
+}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ivory);
+  font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+.container{max-width:980px;margin:0 auto;padding:32px 18px;display:grid;gap:18px}
+.h1{font-size:30px;font-weight:650;letter-spacing:-.02em;margin:0}
+.sub{margin:0;color:var(--muted);font-size:13px}
+.card{border:1px solid var(--border);background:var(--panel);border-radius:18px;padding:18px}
+.textarea{width:100%;min-height:200px;resize:vertical;border-radius:14px;border:1px solid var(--border);
+  background:var(--panel2);color:var(--ivory);padding:14px;font-size:14px;outline:none}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--border);border-radius:16px;padding:10px 14px;cursor:pointer;font-weight:600;
+  background:transparent;color:var(--ivory)}
+.btnGold{background:var(--gold);color:black;border-color:transparent}
+.btnGold:hover{background:var(--gold2)}
+.kpi{border:1px solid var(--border);background:var(--panel2);border-radius:18px;padding:14px}
+.kpiTop{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
+.score{font-size:24px;font-weight:700}
+.badge{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid var(--border);
+  background:#161618;color:var(--gold);font-size:12px}
+.h2{margin:14px 0 8px;font-size:18px;font-weight:650}
+.ul{margin:0;padding-left:18px}
+.small{font-size:12px;color:var(--muted)}
+.hr{height:1px;background:var(--border);border:none;margin:12px 0}
