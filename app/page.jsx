@@ -488,7 +488,7 @@ export default function Page() {
 
       {/* Footer (always visible) */}
       <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
-        Created by Marta Warren | AI-Ready Copy &amp; Content for Luxury Hospitality
+        Created by Marta Warren | AI-Ready Copy &amp; Content for Luxury Lifestyle Brands
       </p>
     </div>
   );
