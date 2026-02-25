@@ -444,13 +444,12 @@ export default function Page() {
   return (
     <div className="container">
       <div>
-        <h1 className="h1">Answer Engine Readiness Score</h1>
-        <p className="muted" style={{ marginTop: 6 }}>
+        <h1 className="h1">AI Quote-Ready Copy Check</h1>
+        <p className="sub">See what AI will repeat, blur, or miss — and where the gaps are.</p>
+      <p className="muted" style={{ marginTop: 6 }}>
           Created by Marta Warren — Brand Visibility in AI Search. Give your beautiful
           stories findable facts.
         </p>
-        <p className="sub">A quick copy hygiene check for AI extractability.</p>
-      </div>
 
       <div className="card">
         <textarea
