@@ -52,6 +52,7 @@ function hasBullets(text) {
 
 function hasHeadings(text) {
   const t = text || "";
+  // lightweight: lines that look like headings / labels
   return /(^|\n)\s*(key facts|highlights|at a glance|overview|details|included|inclusions)\s*[:\-]/i.test(
     t
   );
@@ -106,6 +107,7 @@ function hasBestForSignal(text) {
   );
 }
 function hasWhoSignal(text) {
+  // heuristic for named entities: two Capitalised words
   return /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/.test(text || "");
 }
 function hasWhySignal(text) {
@@ -164,7 +166,7 @@ function extractRepeatables(text) {
     if (hasDateSignal(s)) score += 2;
     if (hasLocationSignal(s)) score += 1;
     if (hasWhatItIsSignal(s)) score += 1;
-    if (s.length >= 45 && s.length <= 180) score += 1;
+    if (s.length >= 45 && s.length <= 180) score += 1; // quotable-ish range
     return { s, score };
   });
 
@@ -311,6 +313,7 @@ function buildClarityGaps(text) {
 }
 
 function scoreOverall(text) {
+  // editorial-ish score: clarity + verifiability + structure
   let clarity = 0;
   if (hasWhatItIsSignal(text)) clarity += 1.5;
   if (hasLocationSignal(text)) clarity += 1.5;
@@ -443,14 +446,19 @@ export default function Page() {
 
   return (
     <div className="container">
+      {/* Header */}
       <div>
         <h1 className="h1">AI Quote-Ready Copy Check</h1>
-        <p className="sub">See what AI will repeat, blur, or miss — and where the gaps are.</p>
-      <p className="muted" style={{ marginTop: 6 }}>
+        <p className="sub">
+          See what AI will repeat, blur, or miss — and where the gaps are.
+        </p>
+        <p className="muted" style={{ marginTop: 6 }}>
           Created by Marta Warren — Brand Visibility in AI Search. Give your beautiful
           stories findable facts.
         </p>
+      </div>
 
+      {/* Input */}
       <div className="card">
         <textarea
           className="textarea"
@@ -465,18 +473,21 @@ export default function Page() {
         </div>
       </div>
 
+      {/* Results */}
       {results && (
         <div className="card">
-          {/* Score */}
           <h2 className="section-title">AI Readiness</h2>
+
           <div style={answerBoxStyle}>
             <div className="score" style={answerStyle}>
               <span style={{ color: "var(--gold)" }}>{results.overall}</span>/10
             </div>
             <div className="score-band">{results.band}</div>
+
             <p className="muted" style={{ marginTop: 10 }}>
               {results.rationale}
             </p>
+
             <p className="muted" style={{ marginTop: 10 }}>
               Luxury benchmark reference: {LUXURY_BENCHMARK}/10 ({delta})
             </p>
@@ -487,8 +498,8 @@ export default function Page() {
             The Lead (what AI grabs first)
           </h2>
           <p className="muted" style={{ marginTop: -6 }}>
-            We check the first 75–100 words because AI usually pulls the headline facts
-            from the opening.
+            We check the first 75–100 words because AI usually pulls the headline facts from
+            the opening.
           </p>
 
           <div style={answerBoxStyle}>
