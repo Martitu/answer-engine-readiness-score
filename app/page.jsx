@@ -1,9 +1,10 @@
 "use client";
+
 import React, { useMemo, useState } from "react";
 
-const LUXURY_BENCHMARK = 6.2;
-const CTA_URL = "https://martawarren.com/ai-search-brand-visibility/";
+const LUXURY_BENCHMARK = 6.2; // you already use this reference score :contentReference[oaicite:4]{index=4}
 
+/** ---------- small helpers ---------- **/
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
 }
@@ -25,61 +26,117 @@ function splitSentences(text) {
     .filter(Boolean);
 }
 
+function splitParagraphs(text) {
+  return (text || "")
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+function avgSentenceLength(text) {
+  const sents = splitSentences(text);
+  if (!sents.length) return 0;
+  const totalWords = sents.reduce((sum, s) => sum + words(s).length, 0);
+  return totalWords / sents.length;
+}
+
+function longestParagraphWords(text) {
+  const paras = splitParagraphs(text);
+  if (!paras.length) return 0;
+  return Math.max(...paras.map((p) => words(p).length));
+}
+
+function hasBullets(text) {
+  return /(^|\n)\s*[-•]/.test(text || "");
+}
+
+function hasHeadings(text) {
+  const t = text || "";
+  // super lightweight: lines that look like headings or labels
+  return /(^|\n)\s*(key facts|highlights|at a glance|overview|details|included|inclusions)\s*[:\-]/i.test(
+    t
+  );
+}
+
+/** ---------- “signals” (non-technical, heuristic) ---------- **/
 function hasNumber(text) {
   return /\d/.test(text || "");
 }
-
 function hasCurrency(text) {
   return /[€$£]\s?\d/.test(text || "");
 }
-
 function hasYear(text) {
   return /\b(19|20)\d{2}\b/.test(text || "");
 }
-
 function hasMonth(text) {
-  return /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b/i.test(text || "");
+  return /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b/i.test(
+    text || ""
+  );
 }
-
 function hasDateSignal(text) {
   return hasYear(text) || hasMonth(text);
 }
-
-function hasCTA(text) {
-  const t = (text || "").toLowerCase();
-  return ["book", "enquir", "enquiries", "email", "call", "phone", "dm", "link in bio", "website"].some((k) =>
-    t.includes(k)
-  );
-}
-
 function hasLocationSignal(text) {
   const t = (text || "").toLowerCase();
-  // lightweight heuristic; luxury copy often uses "in/at/on/near"
-  return t.includes(" in ") || t.includes(" at ") || t.includes(" on ") || t.includes(" near ") || t.includes(" within ");
+  // very light: common location prepositions
+  return (
+    t.includes(" in ") ||
+    t.includes(" at ") ||
+    t.includes(" on ") ||
+    t.includes(" near ") ||
+    t.includes(" within ")
+  );
 }
-
 function hasWhatItIsSignal(text) {
   const t = (text || "").toLowerCase();
-  return ["hotel", "resort", "villa", "villas", "lodge", "retreat", "finca", "estate", "private island"].some((k) =>
-    t.includes(k)
+  return [
+    "hotel",
+    "resort",
+    "villa",
+    "villas",
+    "lodge",
+    "retreat",
+    "finca",
+    "estate",
+    "private island",
+  ].some((k) => t.includes(k));
+}
+function hasBestForSignal(text) {
+  const t = (text || "").toLowerCase();
+  return ["best for", "ideal for", "perfect for", "suited to", "designed for"].some(
+    (k) => t.includes(k)
+  );
+}
+function hasWhoSignal(text) {
+  // heuristic: “Son Bunyola”, “Virgin Limited Edition”, etc. (two Capitalised words)
+  return /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/.test(text || "");
+}
+function hasWhySignal(text) {
+  const t = (text || "").toLowerCase();
+  return [
+    "because",
+    "to mark",
+    "to celebrate",
+    "to meet demand",
+    "in response",
+    "driven by",
+    "as travellers",
+    "so guests can",
+    "so that",
+    "to help",
+  ].some((k) => t.includes(k));
+}
+function hasSoWhatSignal(text) {
+  const t = (text || "").toLowerCase();
+  return ["so that", "so guests", "meaning", "which means", "this means", "allows guests"].some(
+    (k) => t.includes(k)
   );
 }
 
-function hasBestForSignal(text) {
-  const t = (text || "").toLowerCase();
-  return ["best for", "ideal for", "perfect for", "suited to", "designed for"].some((k) => t.includes(k));
-}
-
-function hasStructureSignal(text) {
-  const t = (text || "").toLowerCase();
-  return /(^|\n)\s*[-•]/.test(text || "") || ["key facts", "highlights", "at a glance", "included", "inclusions"].some((k) => t.includes(k));
-}
-
-function containsSuperlatives(lower) {
+function containsPrestigeWords(text) {
+  const lower = (text || "").toLowerCase();
   const risky = [
     "world-class",
-    "best",
-    "most luxurious",
     "iconic",
     "renowned",
     "unrivalled",
@@ -88,6 +145,8 @@ function containsSuperlatives(lower) {
     "no. 1",
     "ultimate",
     "once-in-a-lifetime",
+    "best",
+    "most luxurious",
   ];
   return risky.some((x) => lower.includes(x));
 }
@@ -99,16 +158,16 @@ function getBand(score) {
   return "Recommendation-Ready";
 }
 
+/** ---------- what AI will repeat (fact-y lines) ---------- **/
 function extractRepeatables(text) {
   const sents = splitSentences(text);
-
   const scored = sents.map((s) => {
     let score = 0;
     if (hasNumber(s) || hasCurrency(s)) score += 3;
     if (hasDateSignal(s)) score += 2;
     if (hasLocationSignal(s)) score += 1;
     if (hasWhatItIsSignal(s)) score += 1;
-    if (s.length >= 45 && s.length <= 180) score += 1; // quotable range
+    if (s.length >= 45 && s.length <= 180) score += 1; // quotable-ish range
     return { s, score };
   });
 
@@ -118,92 +177,173 @@ function extractRepeatables(text) {
     .slice(0, 6)
     .map((x) => x.s);
 
-  if (picks.length === 0) return sents.slice(0, 2);
-  return picks;
+  return picks.length ? picks : sents.slice(0, 2);
 }
 
-function buildHesitations(text) {
-  const t = (text || "").trim();
-  const lower = t.toLowerCase();
+/** ---------- “gaps” as {issue, why} (no rewrite suggestions) ---------- **/
+function gap(issue, why) {
+  return { issue, why };
+}
+
+function buildLeadGaps(lead) {
   const items = [];
 
-  // Essentials
-  if (!hasWhatItIsSignal(t)) items.push("The category isn’t explicit (hotel / resort / villa / lodge).");
-  if (!hasLocationSignal(t)) items.push("The destination isn’t stated clearly (place + region/country).");
-  if (!hasBestForSignal(t)) items.push("‘Who it’s for’ isn’t explicit (occasion / traveller type).");
-  if (!hasCTA(t)) items.push("The booking action isn’t explicit (link / email / phone / enquiry channel).");
-
-  // Proof/constraints
-  if (!hasNumber(t)) items.push("No measurable detail (dates, ‘from’ price, duration, capacity, distance, etc.).");
-  if (hasMonth(t) && !hasYear(t)) items.push("Dates/months appear without a year (makes summaries less reliable).");
-  if (lower.includes("available") && !(hasDateSignal(t) || lower.includes("subject to availability") || lower.includes("minimum"))) {
-    items.push("Availability is mentioned without clear constraints (dates / minimum stay / subject to availability).");
+  if (!hasWhoSignal(lead)) {
+    items.push(
+      gap(
+        "The ‘who’ isn’t clearly named early.",
+        "If the main name isn’t obvious in the first paragraph, AI may describe you in generic terms or confuse you with a similar brand."
+      )
+    );
   }
-  if (containsSuperlatives(lower)) items.push("Some superlatives read like claims unless anchored with a specific detail.");
-
-  return items.slice(0, 7);
-}
-
-function buildProofMissing(text) {
-  const t = (text || "").trim();
-  const lower = t.toLowerCase();
-  const items = [];
-
-  // Proof types (light-touch, content-only)
-  if (!hasDateSignal(t)) items.push("A recency marker (month/year, launch date, reopening date, seasonal window).");
-  if (!hasNumber(t) && !hasCurrency(t)) items.push("One quantifiable proof point (price from / capacity / distance / duration / estate size / number of rooms).");
-
-  // When months exist but no year
-  if (hasMonth(t) && !hasYear(t)) items.push("Year attached to any month/season reference (e.g., ‘March 2026’).");
-
-  // Claimy language
-  if (containsSuperlatives(lower)) items.push("A supporting detail for any superlative (or soften the phrasing).");
-
-  // Booking confidence
-  if (lower.includes("from") && !hasCurrency(t)) items.push("Clarify ‘from’ pricing with currency and what it refers to (if mentioned).");
+  if (!hasWhatItIsSignal(lead)) {
+    items.push(
+      gap(
+        "It isn’t obvious what the thing is (hotel / resort / villa / lodge).",
+        "AI relies on categories to match people’s questions. If the category isn’t explicit, recommendations become less accurate."
+      )
+    );
+  }
+  if (!hasLocationSignal(lead)) {
+    items.push(
+      gap(
+        "The ‘where’ isn’t clearly stated.",
+        "Location is one of the biggest filters in travel recommendations. If it’s unclear, AI often drops it or guesses."
+      )
+    );
+  }
+  if (!hasDateSignal(lead)) {
+    items.push(
+      gap(
+        "The timing isn’t clear (date / month / year).",
+        "Without timing, AI may treat the information as outdated or evergreen, which reduces trust and precision."
+      )
+    );
+  }
+  if (!hasWhySignal(lead)) {
+    items.push(
+      gap(
+        "The ‘why now?’ isn’t clear.",
+        "If the reason isn’t explicit, AI may remove it in summaries — the story can lose urgency and specificity."
+      )
+    );
+  }
+  if (!hasSoWhatSignal(lead)) {
+    items.push(
+      gap(
+        "The ‘so what?’ (what changes for the guest) isn’t explicit.",
+        "When outcomes aren’t stated plainly, AI fills the gap with generic benefit language, which weakens differentiation."
+      )
+    );
+  }
 
   return items.slice(0, 6);
 }
 
-function buildConsistencyRisks(text) {
-  const lower = (text || "").toLowerCase();
-  const risks = [];
+function buildTrustGaps(text) {
+  const items = [];
+  const t = (text || "").trim();
 
-  // Simple mismatch heuristics (no invented facts)
-  const hasThreeDays = lower.includes("three days");
-  const hasThreeNights = lower.includes("three-night") || lower.includes("three night");
-  if (hasThreeDays && hasThreeNights) risks.push("Duration wording looks inconsistent (‘three days’ vs ‘three nights’). Align to one.");
-
-  const hasForTwo = lower.includes("for two");
-  const hasPerGuest = lower.includes("for each guest") || lower.includes("per guest");
-  if (hasForTwo && hasPerGuest) risks.push("Scope wording may conflict (‘for two’ vs ‘per guest’). Clarify what applies per booking vs per guest.");
-
-  // Date formatting (light)
-  if (/\b\d+(st|nd|rd|th)\b/i.test(lower)) risks.push("Date formatting: AI summarises better with ‘6 March 2026’ (no ‘6th’).");
-
-  // Naming consistency – if many capitals & variants
-  if (lower.includes("tramuntana") && (lower.includes("mountains") && lower.includes("mountain range"))) {
-    risks.push("Place naming appears in multiple forms (e.g., ‘Mountains’ vs ‘mountain range’). Choose one canonical phrasing.");
+  if (!hasDateSignal(t)) {
+    items.push(
+      gap(
+        "No clear recency marker (date/month/year).",
+        "AI repeats dated facts more confidently. Without a time anchor, it’s more likely to summarise vaguely."
+      )
+    );
+  }
+  if (!hasNumber(t) && !hasCurrency(t)) {
+    items.push(
+      gap(
+        "Few measurable details (numbers, timings, size, duration, ‘from’ price).",
+        "Specific numbers are ‘safe’ for AI to repeat. Without them, summaries become softer and less quotable."
+      )
+    );
+  }
+  if (hasMonth(t) && !hasYear(t)) {
+    items.push(
+      gap(
+        "A month/season is mentioned without a year.",
+        "This makes summaries less reliable because AI can’t tell which year the information applies to."
+      )
+    );
+  }
+  if (containsPrestigeWords(t)) {
+    items.push(
+      gap(
+        "Prestige words appear without something checkable next to them.",
+        "Humans understand ‘iconic’ and ‘world-class’ as tone. AI treats them like claims — and may drop them or replace them with generic phrases."
+      )
+    );
   }
 
-  return risks.slice(0, 6);
+  return items.slice(0, 6);
 }
 
-function buildQuickWins(text) {
-  const t = (text || "").trim();
-  const lower = t.toLowerCase();
-  const wins = [];
+function buildClarityGaps(text) {
+  const items = [];
+  const avgLen = avgSentenceLength(text);
+  const longestPara = longestParagraphWords(text);
 
-  if (!hasBestForSignal(t)) wins.push("Add one plain ‘Best for…’ line near the top (occasion / traveller type).");
-  if (!hasNumber(t)) wins.push("Add one measurable detail (date, duration, capacity, distance, or ‘from’ price).");
-  if (hasMonth(t) && !hasYear(t)) wins.push("Attach a year to any month/season reference (e.g., ‘March 2026’).");
-  if (!hasCTA(t)) wins.push("Add a clear booking action (link / email / phone / enquiry channel).");
-  if (containsSuperlatives(lower)) wins.push("Soften unsupported superlatives (or anchor them with a specific detail).");
-  if (!hasStructureSignal(t)) wins.push("Add a short ‘Key facts’ block (5–7 bullets) so AI can extract essentials quickly.");
+  if (longestPara >= 120) {
+    items.push(
+      gap(
+        "Some paragraphs are very long.",
+        "When facts sit inside long blocks, AI often compresses or skips details — especially on mobile-style summaries."
+      )
+    );
+  }
+  if (avgLen >= 24) {
+    items.push(
+      gap(
+        "Many sentences are long.",
+        "Long sentences increase paraphrasing. Paraphrasing is where meaning can get softened or slightly changed."
+      )
+    );
+  }
+  if (!hasBullets(text) && !hasHeadings(text)) {
+    items.push(
+      gap(
+        "Key details aren’t clearly separated on the page.",
+        "AI is more accurate when it can ‘spot’ distinct fact areas. Without separation, it tends to summarise more loosely."
+      )
+    );
+  }
 
-  return wins.slice(0, 5);
+  return items.slice(0, 6);
 }
 
+function scoreOverall(text) {
+  // keep your original “editorial score” structure but remove rewrite-ish language
+  let clarity = 0;
+  if (hasWhatItIsSignal(text)) clarity += 1.5;
+  if (hasLocationSignal(text)) clarity += 1.5;
+  if (hasBestForSignal(text)) clarity += 1;
+  clarity = clamp(clarity, 0, 4);
+
+  let verifiability = 0;
+  if (hasNumber(text) || hasCurrency(text)) verifiability += 1;
+  if (hasDateSignal(text)) verifiability += 1;
+  if (
+    text.toLowerCase().includes("minimum") ||
+    text.toLowerCase().includes("subject to availability") ||
+    text.toLowerCase().includes("available")
+  ) {
+    verifiability += 1;
+  }
+  verifiability = clamp(verifiability, 0, 3);
+
+  let structure = 0;
+  if (hasBullets(text) || hasHeadings(text)) structure += 1;
+  if (!containsPrestigeWords(text)) structure += 1;
+  if (splitSentences(text).length >= 3) structure += 1;
+  structure = clamp(structure, 0, 3);
+
+  const overall = Math.round((clarity + verifiability + structure) * 10) / 10;
+  return overall;
+}
+
+/** ---------- UI ---------- **/
 export default function Page() {
   const [input, setInput] = useState("");
   const [results, setResults] = useState(null);
@@ -215,80 +355,49 @@ export default function Page() {
       return;
     }
 
-    // --- Editorial scoring (0–10) ---
-    // 1) Clarity (0–4)
-    let clarity = 0;
-    if (hasWhatItIsSignal(text)) clarity += 1.5;
-    if (hasLocationSignal(text)) clarity += 1.5;
-    if (hasBestForSignal(text)) clarity += 1;
-    clarity = clamp(clarity, 0, 4);
-
-    // 2) Verifiability (0–3)
-    let verifiability = 0;
-    if (hasNumber(text) || hasCurrency(text)) verifiability += 1;
-    if (hasDateSignal(text)) verifiability += 1;
-    if (text.toLowerCase().includes("minimum") || text.toLowerCase().includes("subject to availability") || text.toLowerCase().includes("available")) {
-      verifiability += 1;
-    }
-    verifiability = clamp(verifiability, 0, 3);
-
-    // 3) Structure (0–3)
-    let structure = 0;
-    if (hasStructureSignal(text)) structure += 1;
-    if (!containsSuperlatives(text.toLowerCase())) structure += 1;
-    if (splitSentences(text).length >= 3) structure += 1;
-    structure = clamp(structure, 0, 3);
-
-    const overall = Math.round((clarity + verifiability + structure) * 10) / 10;
+    const overall = scoreOverall(text);
     const band = getBand(overall);
 
-    let rationale;
+    // neutral rationale (no “tighten”, “add”, “rewrite”)
+    let rationale = "";
     if (band === "Hard to Extract") {
       rationale =
-        "Atmospheric, but unclear on specifics. Without a defined proposition and at least one measurable detail, AI assistants struggle to summarise this confidently.";
+        "AI would struggle to summarise this accurately because the essential facts aren’t clear or checkable early on.";
     } else if (band === "Extractable with Gaps") {
       rationale =
-        "The fundamentals are present, but AI would still have to infer key details. Tighten the opening and add one verifiable proof point to increase recommendation confidence.";
+        "AI can summarise parts of this, but some key details are missing or easy to blur into generic language.";
     } else if (band === "Strong Foundation") {
       rationale =
-        "Clear proposition and supporting detail make this reasonably safe for AI extraction. A little more structure and one extra proof point would strengthen reuse.";
+        "AI can reuse several details confidently, but a few gaps may cause it to generalise or drop specifics.";
     } else {
       rationale =
-        "Clear, structured and supported by verifiable detail. This is close to recommendation-ready for AI summaries.";
+        "This contains clear, reusable facts. AI is more likely to repeat the key details accurately.";
     }
 
-    // Lead (first ~100 words)
     const lead = firstNWords(text, 95);
+
     const leadChecks = {
-      whatItIs: hasWhatItIsSignal(lead),
+      who: hasWhoSignal(lead),
+      what: hasWhatItIsSignal(lead),
       where: hasLocationSignal(lead),
-      bestFor: hasBestForSignal(lead),
-      proof: hasNumber(lead) || hasCurrency(lead) || hasDateSignal(lead),
+      when: hasDateSignal(lead),
+      why: hasWhySignal(lead),
+      soWhat: hasSoWhatSignal(lead),
     };
 
     const repeatables = extractRepeatables(text).slice(0, 6);
-    const hesitations = buildHesitations(text);
-    const proofMissing = buildProofMissing(text);
-    const consistencyRisks = buildConsistencyRisks(text);
-    const quickWins = buildQuickWins(text);
 
-    const structureChecks = [
-      {
-        label: "Key facts block",
-        ok: text.toLowerCase().includes("key facts") || text.toLowerCase().includes("at a glance") || text.toLowerCase().includes("highlights"),
-        hint: "Add 5–7 bullets with defensible facts (what/where/dates/inclusions/constraints).",
-      },
-      {
-        label: "Scannable sections / bullets",
-        ok: /(^|\n)\s*[-•]/.test(text) || splitSentences(text).length >= 4,
-        hint: "Break dense paragraphs into short sections or bullets where the facts live.",
-      },
-      {
-        label: "Guest-intent Q&A",
-        ok: text.toLowerCase().includes("faq") || /\bq:\b/i.test(text) || text.includes("?"),
-        hint: "Add 3–5 micro-FAQs (where, what’s included, when available, how to book).",
-      },
-    ];
+    const leadGaps = buildLeadGaps(lead);
+    const trustGaps = buildTrustGaps(text);
+    const clarityGaps = buildClarityGaps(text);
+
+    const stats = {
+      wordCount: words(text).length,
+      avgSentenceWords: Math.round(avgSentenceLength(text) * 10) / 10,
+      longestParagraphWords: longestParagraphWords(text),
+      bulletsPresent: hasBullets(text),
+      headingsPresent: hasHeadings(text),
+    };
 
     setResults({
       overall,
@@ -297,11 +406,10 @@ export default function Page() {
       lead,
       leadChecks,
       repeatables,
-      hesitations,
-      proofMissing,
-      structureChecks,
-      consistencyRisks,
-      quickWins,
+      leadGaps,
+      trustGaps,
+      clarityGaps,
+      stats,
     });
   };
 
@@ -311,7 +419,6 @@ export default function Page() {
     return (d >= 0 ? "+" : "") + d;
   }, [results]);
 
-  // Styles: make "answers" pop vs muted UI
   const answerStyle = { color: "var(--ivory)" };
   const answerBoxStyle = {
     background: "var(--panel2)",
@@ -319,6 +426,25 @@ export default function Page() {
     borderRadius: 14,
     padding: 16,
   };
+
+  const renderGaps = (items) => (
+    <div style={answerBoxStyle}>
+      {items.length ? (
+        <ul style={{ ...answerStyle, margin: 0, paddingLeft: 18 }}>
+          {items.map((g, i) => (
+            <li key={i} style={{ marginBottom: 12 }}>
+              <div style={{ fontWeight: 600 }}>{g.issue}</div>
+              <div className="muted" style={{ marginTop: 4 }}>
+                {g.why}
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="muted">No major gaps detected in this section.</div>
+      )}
+    </div>
+  );
 
   return (
     <div className="container">
@@ -330,7 +456,7 @@ export default function Page() {
       <div className="card">
         <textarea
           className="textarea"
-          placeholder="Paste your press release, property page, or social caption here…"
+          placeholder="Paste your copy here… (press release lead, pitch intro, web copy, etc.)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
@@ -343,8 +469,8 @@ export default function Page() {
 
       {results && (
         <div className="card">
-          {/* 1) Score */}
-          <h2 className="section-title">Answer Engine Readiness</h2>
+          {/* Score */}
+          <h2 className="section-title">AI Readiness</h2>
           <div style={answerBoxStyle}>
             <div className="score" style={answerStyle}>
               <span style={{ color: "var(--gold)" }}>{results.overall}</span>/10
@@ -358,138 +484,118 @@ export default function Page() {
             </p>
           </div>
 
-          {/* 2) Lead extractability */}
+          {/* 1) The Lead */}
           <h2 className="section-title" style={{ marginTop: 28 }}>
-            Lead Extractability
+            The Lead (what AI grabs first)
           </h2>
           <p className="muted" style={{ marginTop: -6 }}>
-            AI tools lean heavily on opening lines. If the “what / where / who it’s for” isn’t clear early, you’re less likely to be quoted or recommended.
+            We check the first 75–100 words because AI usually pulls the headline facts from
+            the opening.
           </p>
 
           <div style={answerBoxStyle}>
             <p style={{ ...answerStyle, marginTop: 0 }}>{results.lead}</p>
+
             <div className="row" style={{ marginTop: 10 }}>
-              <span className="score-band" style={{ background: results.leadChecks.whatItIs ? "var(--gold-soft)" : "transparent" }}>
-                {results.leadChecks.whatItIs ? "✓ What it is" : "□ What it is"}
-              </span>
-              <span className="score-band" style={{ background: results.leadChecks.where ? "var(--gold-soft)" : "transparent" }}>
-                {results.leadChecks.where ? "✓ Where it is" : "□ Where it is"}
-              </span>
-              <span className="score-band" style={{ background: results.leadChecks.bestFor ? "var(--gold-soft)" : "transparent" }}>
-                {results.leadChecks.bestFor ? "✓ Who it’s for" : "□ Who it’s for"}
-              </span>
-              <span className="score-band" style={{ background: results.leadChecks.proof ? "var(--gold-soft)" : "transparent" }}>
-                {results.leadChecks.proof ? "✓ Proof point" : "□ Proof point"}
-              </span>
+              {[
+                ["Who", results.leadChecks.who],
+                ["What", results.leadChecks.what],
+                ["Where", results.leadChecks.where],
+                ["When", results.leadChecks.when],
+                ["Why", results.leadChecks.why],
+                ["So what", results.leadChecks.soWhat],
+              ].map(([label, ok]) => (
+                <span
+                  key={label}
+                  className="score-band"
+                  style={{ background: ok ? "var(--gold-soft)" : "transparent" }}
+                >
+                  {ok ? `✓ ${label}` : `□ ${label}`}
+                </span>
+              ))}
             </div>
           </div>
 
-          {/* 3) What AI will repeat */}
+          <div style={{ marginTop: 14 }}>{renderGaps(results.leadGaps)}</div>
+
+          {/* 2) Trust signals */}
           <h2 className="section-title" style={{ marginTop: 28 }}>
-            What AI Is Likely to Repeat
+            Trust signals (what AI repeats)
           </h2>
           <p className="muted" style={{ marginTop: -6 }}>
-            These are the most quotable, defensible lines in your draft — the parts an assistant can reuse with minimal risk.
+            AI repeats dates, numbers, names, and specific details more reliably than
+            atmospheric language.
           </p>
 
           <div style={answerBoxStyle}>
+            <div className="muted" style={{ marginBottom: 10 }}>
+              Facts AI can lift cleanly from your draft:
+            </div>
             <ul style={{ ...answerStyle, margin: 0, paddingLeft: 18 }}>
-              {results.repeatables.length ? (
-                results.repeatables.map((s, i) => <li key={i} style={{ marginBottom: 8 }}>{s}</li>)
-              ) : (
-                <li>Add one measurable detail (dates/price/duration) and a clearer proposition — then rerun.</li>
-              )}
-            </ul>
-          </div>
-
-          {/* 4) What's vague / missing */}
-          <h2 className="section-title" style={{ marginTop: 28 }}>
-            What’s Vague / Missing
-          </h2>
-
-          <div style={answerBoxStyle}>
-            <ul style={{ ...answerStyle, margin: 0, paddingLeft: 18 }}>
-              {results.hesitations.length ? results.hesitations.map((h, i) => <li key={i} style={{ marginBottom: 8 }}>{h}</li>) : <li>No major gaps detected.</li>}
-            </ul>
-          </div>
-
-          {/* 5) What proof is missing */}
-          <h2 className="section-title" style={{ marginTop: 28 }}>
-            What Proof Is Missing
-          </h2>
-          <p className="muted" style={{ marginTop: -6 }}>
-            This isn’t about “adding marketing claims.” It’s about adding one or two details that make a summary trustworthy.
-          </p>
-
-          <div style={answerBoxStyle}>
-            <ul style={{ ...answerStyle, margin: 0, paddingLeft: 18 }}>
-              {results.proofMissing.length ? results.proofMissing.map((p, i) => <li key={i} style={{ marginBottom: 8 }}>{p}</li>) : <li>Nothing obvious flagged here.</li>}
-            </ul>
-          </div>
-
-          {/* 6) Structure & reuse */}
-          <h2 className="section-title" style={{ marginTop: 28 }}>
-            Structure & Reuse Check
-          </h2>
-
-          <div style={answerBoxStyle}>
-            <ul style={{ ...answerStyle, margin: 0, paddingLeft: 18 }}>
-              {results.structureChecks.map((c, i) => (
-                <li key={i} style={{ marginBottom: 10 }}>
-                  <strong>{c.label}:</strong> {c.ok ? "Yes" : "No"}
-                  {!c.ok && <div className="muted" style={{ marginTop: 4 }}>{c.hint}</div>}
+              {results.repeatables.map((s, i) => (
+                <li key={i} style={{ marginBottom: 8 }}>
+                  {s}
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* 7) Consistency risks */}
-          <h2 className="section-title" style={{ marginTop: 28 }}>
-            Consistency Risks
-          </h2>
+          <div style={{ marginTop: 14 }}>{renderGaps(results.trustGaps)}</div>
 
-          <div style={answerBoxStyle}>
-            <ul style={{ ...answerStyle, margin: 0, paddingLeft: 18 }}>
-              {results.consistencyRisks.length ? (
-                results.consistencyRisks.map((r, i) => <li key={i} style={{ marginBottom: 8 }}>{r}</li>)
-              ) : (
-                <li>No obvious consistency issues flagged.</li>
-              )}
-            </ul>
-          </div>
-
-          {/* 8) Quick wins */}
+          {/* 3) Clarity */}
           <h2 className="section-title" style={{ marginTop: 28 }}>
-            Quick Wins (Copy Hygiene)
+            Clarity (how easily AI picks out facts)
           </h2>
           <p className="muted" style={{ marginTop: -6 }}>
-            Light-touch tweaks to improve extractability. Strategic repositioning is a separate exercise.
+            This isn’t about tone. It’s about whether key details are easy to spot and
+            repeat accurately.
           </p>
 
           <div style={answerBoxStyle}>
             <ul style={{ ...answerStyle, margin: 0, paddingLeft: 18 }}>
-              {results.quickWins.length ? results.quickWins.map((q, i) => <li key={i} style={{ marginBottom: 8 }}>{q}</li>) : <li>No obvious quick wins detected.</li>}
+              <li style={{ marginBottom: 8 }}>Word count: {results.stats.wordCount}</li>
+              <li style={{ marginBottom: 8 }}>
+                Average sentence length: {results.stats.avgSentenceWords} words
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Longest paragraph: {results.stats.longestParagraphWords} words
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Bullets present: {results.stats.bulletsPresent ? "Yes" : "No"}
+              </li>
+              <li style={{ marginBottom: 8 }}>
+                Headings/labels present: {results.stats.headingsPresent ? "Yes" : "No"}
+              </li>
             </ul>
           </div>
 
-          {/* 9) CTA differentiation */}
-          <div className="cta" style={{ marginTop: 24 }}>
-            <p className="muted" style={{ marginTop: 0 }}>
-              This checks copy hygiene. A full audit benchmarks how your brand appears across real AI prompts — and where competitors outperform you.
-            </p>
-            <div className="row" style={{ marginTop: 10 }}>
-              <a href={CTA_URL} target="_blank" rel="noreferrer">
-                <button className="btn primary">Request Full Benchmark Audit</button>
-              </a>
-            </div>
+          <div style={{ marginTop: 14 }}>{renderGaps(results.clarityGaps)}</div>
+
+          {/* 4) Summary */}
+          <h2 className="section-title" style={{ marginTop: 28 }}>
+            What’s missing for accurate recommendations
+          </h2>
+          <p className="muted" style={{ marginTop: -6 }}>
+            This is a summary of the gaps above. No rewrite suggestions — just what’s missing
+            and why AI tends to blur it.
+          </p>
+
+          <div style={answerBoxStyle}>
+            <ul style={{ ...answerStyle, margin: 0, paddingLeft: 18 }}>
+              {[...results.leadGaps, ...results.trustGaps, ...results.clarityGaps]
+                .slice(0, 6)
+                .map((g, i) => (
+                  <li key={i} style={{ marginBottom: 10 }}>
+                    <div style={{ fontWeight: 600 }}>{g.issue}</div>
+                    <div className="muted" style={{ marginTop: 4 }}>
+                      {g.why}
+                    </div>
+                  </li>
+                ))}
+            </ul>
           </div>
         </div>
       )}
-
-      {/* Footer (always visible) */}
-      <p className="muted" style={{ marginTop: 10, fontSize: 13 }}>
-        Created by Marta Warren | AI-Ready Copy &amp; Content for Luxury Lifestyle Brands
-      </p>
     </div>
   );
 }
