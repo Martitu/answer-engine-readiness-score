@@ -324,7 +324,7 @@ export default function Page() {
     <div className="container">
       <div>
         <h1 className="h1">Answer Engine Readiness Score</h1>
-        <p className="sub">A quick copy hygiene check for AI extractability (luxury hospitality edition).</p>
+        <p className="sub">A quick copy hygiene check for AI extractability.</p>
       </div>
 
       <div className="card">
