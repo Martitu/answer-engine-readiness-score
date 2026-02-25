@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 
-const LUXURY_BENCHMARK = 6.2; // you already use this reference score :contentReference[oaicite:4]{index=4}
+const LUXURY_BENCHMARK = 6.2;
 
 /** ---------- small helpers ---------- **/
 function clamp(n, min, max) {
@@ -52,7 +52,6 @@ function hasBullets(text) {
 
 function hasHeadings(text) {
   const t = text || "";
-  // super lightweight: lines that look like headings or labels
   return /(^|\n)\s*(key facts|highlights|at a glance|overview|details|included|inclusions)\s*[:\-]/i.test(
     t
   );
@@ -78,7 +77,6 @@ function hasDateSignal(text) {
 }
 function hasLocationSignal(text) {
   const t = (text || "").toLowerCase();
-  // very light: common location prepositions
   return (
     t.includes(" in ") ||
     t.includes(" at ") ||
@@ -108,7 +106,6 @@ function hasBestForSignal(text) {
   );
 }
 function hasWhoSignal(text) {
-  // heuristic: “Son Bunyola”, “Virgin Limited Edition”, etc. (two Capitalised words)
   return /\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/.test(text || "");
 }
 function hasWhySignal(text) {
@@ -167,7 +164,7 @@ function extractRepeatables(text) {
     if (hasDateSignal(s)) score += 2;
     if (hasLocationSignal(s)) score += 1;
     if (hasWhatItIsSignal(s)) score += 1;
-    if (s.length >= 45 && s.length <= 180) score += 1; // quotable-ish range
+    if (s.length >= 45 && s.length <= 180) score += 1;
     return { s, score };
   });
 
@@ -314,7 +311,6 @@ function buildClarityGaps(text) {
 }
 
 function scoreOverall(text) {
-  // keep your original “editorial score” structure but remove rewrite-ish language
   let clarity = 0;
   if (hasWhatItIsSignal(text)) clarity += 1.5;
   if (hasLocationSignal(text)) clarity += 1.5;
@@ -358,7 +354,6 @@ export default function Page() {
     const overall = scoreOverall(text);
     const band = getBand(overall);
 
-    // neutral rationale (no “tighten”, “add”, “rewrite”)
     let rationale = "";
     if (band === "Hard to Extract") {
       rationale =
@@ -450,6 +445,10 @@ export default function Page() {
     <div className="container">
       <div>
         <h1 className="h1">Answer Engine Readiness Score</h1>
+        <p className="muted" style={{ marginTop: 6 }}>
+          Created by Marta Warren — Brand Visibility in AI Search. Give your beautiful
+          stories findable facts.
+        </p>
         <p className="sub">A quick copy hygiene check for AI extractability.</p>
       </div>
 
@@ -489,8 +488,8 @@ export default function Page() {
             The Lead (what AI grabs first)
           </h2>
           <p className="muted" style={{ marginTop: -6 }}>
-            We check the first 75–100 words because AI usually pulls the headline facts from
-            the opening.
+            We check the first 75–100 words because AI usually pulls the headline facts
+            from the opening.
           </p>
 
           <div style={answerBoxStyle}>
@@ -576,8 +575,8 @@ export default function Page() {
             What’s missing for accurate recommendations
           </h2>
           <p className="muted" style={{ marginTop: -6 }}>
-            This is a summary of the gaps above. No rewrite suggestions — just what’s missing
-            and why AI tends to blur it.
+            This is the snapshot. Want the full picture? I’m happy to show you the ropes —
+            what to look for, where AI gets picky, and how to keep your style intact.
           </p>
 
           <div style={answerBoxStyle}>
@@ -596,6 +595,38 @@ export default function Page() {
           </div>
         </div>
       )}
+
+      {/* Footer CTA */}
+      <div
+        style={{
+          marginTop: 22,
+          paddingTop: 16,
+          borderTop: "1px solid var(--border)",
+        }}
+      >
+        <p className="muted" style={{ margin: 0 }}>
+          This check is the snapshot. Want the full picture? I’m happy to show you the ropes —
+          what to look for, where AI gets picky, and how to keep your style intact.
+        </p>
+        <p style={{ margin: "10px 0 0 0" }}>
+          <a
+            href="https://martawarren.com/ai-search-brand-visibility/"
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: "var(--gold)", marginRight: 14 }}
+          >
+            Explore AI Search Brand Visibility
+          </a>
+          <a
+            href="https://www.linkedin.com/in/marta-warren/"
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: "var(--gold)" }}
+          >
+            Connect on LinkedIn
+          </a>
+        </p>
+      </div>
     </div>
   );
 }
