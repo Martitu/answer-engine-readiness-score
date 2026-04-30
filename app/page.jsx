@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 
-const CTA_URL = "https://martawarren.com/ai-search-brand-visibility/";
+const CTA_URL = "https://martawarren.com/";
 
 const CONTENT_TYPES = [
   "Homepage intro",
@@ -931,7 +931,7 @@ export default function Page() {
             <h2>BLUF status</h2>
             <p className={`status-line ${results.blufStatus.toLowerCase().replace(" ", "-")}`}>{results.blufStatus}</p>
             <p>{results.blufExplanation}</p>
-            <p className="muted">This only scores the existing opening. It does not generate a new BLUF.</p>
+            <p className="muted">This only scores the existing opening. It does not generate a new BLUF. BLUF means Bottom Line Up Front: say the most important thing first, clearly and quickly, before you add the detail, context or storytelling.</p>
           </article>
 
           <AuditList title="What AI is likely to understand" items={results.understood} />
@@ -965,11 +965,11 @@ export default function Page() {
             <div>
               <h2>Want a deeper review?</h2>
               <p>
-                A full AI Visibility Diagnostic looks beyond one piece of copy to assess whether your brand is being found, understood and recommended across AI answers.
+                A full AI Visibility Audit looks beyond one piece of copy to assess whether your brand is being found, understood and recommended across AI answers.
               </p>
             </div>
             <a className="primary-button link-button" href={CTA_URL} target="_blank" rel="noreferrer">
-              Book an AI Visibility Diagnostic
+              Book an AI Visibility Audit
             </a>
           </article>
         </section>
