@@ -29,7 +29,7 @@ const WEIGHTS = {
 };
 
 const CATEGORY_LABELS = {
-  bluf: "BLUF / Lead Extractability",
+  bluf: "Clear Opening",
   entity: "Entity & Specificity",
   proof: "Proof & Trust Signals",
   fit: "Recommendation Fit",
@@ -692,7 +692,7 @@ Rationale: ${results.rationale}
 Category scores
 ${categoryLines}
 
-BLUF status: ${results.blufStatus}
+Opening Clarity: ${results.blufStatus}
 ${results.blufExplanation}
 
 What AI is likely to understand
@@ -890,7 +890,7 @@ export default function Page() {
               <p>{results.rationale}</p>
             </div>
             <div className={`status-chip ${results.blufStatus.toLowerCase().replace(" ", "-")}`}>
-              BLUF status: {results.blufStatus}
+              Opening Clarity: {results.blufStatus}
             </div>
           </article>
 
@@ -925,13 +925,6 @@ export default function Page() {
                 </section>
               ))}
             </div>
-          </article>
-
-          <article className="result-card">
-            <h2>BLUF status</h2>
-            <p className={`status-line ${results.blufStatus.toLowerCase().replace(" ", "-")}`}>{results.blufStatus}</p>
-            <p>{results.blufExplanation}</p>
-            <p className="muted">This only scores the existing opening. It does not generate a new BLUF. BLUF means Bottom Line Up Front: say the most important thing first, clearly and quickly, before you add the detail, context or storytelling.</p>
           </article>
 
           <AuditList title="What AI is likely to understand" items={results.understood} />
